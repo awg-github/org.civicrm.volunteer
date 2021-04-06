@@ -249,6 +249,30 @@ class CRM_Volunteer_BAO_Assignment extends CRM_Volunteer_BAO_Activity {
     ));
     $project = CRM_Volunteer_BAO_Project::retrieveByID($need['project_id']);
 
+    /** cividesk code **/
+    $defaults['details'] = $project ? $project->description : '';
+    $result = civicrm_api3('LocBlock', 'get', [
+      'sequential' => 1,
+      'return' => ['address_id'],
+      'id' => $project->loc_block_id,
+    ]);
+
+    $addressID = $result['values'][0]['address_id'];
+    $result = civicrm_api3('Address', 'get', [
+      'sequential' => 1,
+      'id' => $addressID,
+    ]);
+
+    $address = $result['values'][0];
+    if (!empty($address['country_id'])) {
+      $address['country'] = CRM_Core_PseudoConstant::country($address['country_id']);
+    }
+    $addressDisplay = CRM_Utils_Address::format($address);
+    if ($addressDisplay) {
+      $defaults['location'] = $addressDisplay;
+    }
+    /** cividesk code **/
+
     $defaults['campaign_id'] = $project ? $project->campaign_id : '';
     // Force NULL campaign ids to be empty strings, since the API ignores NULL values.
     if (empty($defaults['campaign_id'])) {
