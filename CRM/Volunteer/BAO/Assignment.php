@@ -267,7 +267,10 @@ class CRM_Volunteer_BAO_Assignment extends CRM_Volunteer_BAO_Activity {
     if (!empty($address['country_id'])) {
       $address['country'] = CRM_Core_PseudoConstant::country($address['country_id']);
     }
-    $addressDisplay = CRM_Utils_Address::format($address);
+    $address['address_name'] = $address['name'];
+
+    $format = "{contact.address_name}{ - }{contact.street_address}{, }{contact.supplemental_address_1}{, }{contact.city}{, }{contact.state_province}{ }{contact.postal_code} {contact.country}";
+    $addressDisplay = CRM_Utils_Address::format($address, $format);
     if ($addressDisplay) {
       $defaults['location'] = $addressDisplay;
     }
