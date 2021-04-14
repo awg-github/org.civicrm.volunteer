@@ -305,6 +305,85 @@ class CRM_Volunteer_BAO_Assignment extends CRM_Volunteer_BAO_Activity {
     return $defaults;
   }
 
+public function prepareTplParams(array $projectNeeds) {
+    $tplParams = array();
+
+    // The foreach loop is a workaround for api.volunteer_project.get's inability to
+    // handle advanced operators, i.e., 'id' => array('IN' => array(1,2,3)).
+    foreach($projectNeeds as $projectId => $needs) {
+      $result = civicrm_api3('VolunteerProject', 'get', array(
+        'return' => "title,description",
+        'sequential' => 1,
+        'api.VolunteerProjectContact.get' => array(
+          'relationship_type_id' => "volunteer_manager",
+          'return' => "contact_id",
+          'api.contact.get' => array(
+            'return' => "display_name,email,phone"
+          )
+        ),
+        'api.LocBlock.get' => array('return' => "all"),
+        'id' => $projectId
+      ));
+
+      if ($result['count'] > 0) {
+        $project = $result['values'][0];
+
+        // Move the data around so it makes sense for template use
+        if ($project['api.LocBlock.get']['count'] == 1) {
+          $project['location'] = $project['api.LocBlock.get']['values'][0];
+          $project['location']['email'] = (array_key_exists("email", $project['location'])) ? $project['location']['email']['email'] : "";
+          $project['location']['email2'] = (array_key_exists("email2", $project['location'])) ? $project['location']['email2']['email'] : "";
+          $project['location']['phone'] = (array_key_exists("phone", $project['location'])) ? $project['location']['phone']['phone'] : "";
+          $project['location']['phone2'] = (array_key_exists("phone2", $project['location'])) ? $project['location']['phone2']['phone'] : "";
+        }
+        $project['contacts'] = array();
+        foreach ($project['api.VolunteerProjectContact.get']['values'] as $contact) {
+          $project['contacts'][] = $contact['api.contact.get']['values'][0];
+        }
+
+        $project['opportunities'] = $needs;
+      }
+      $tplParams[] = $project;
+    }
+
+    return $tplParams;
+  }
+
+
+  public function sendVolunteerConfirmationEmail($cid, $projectNeeds) {
+
+    list($displayName, $email) = CRM_Contact_BAO_Contact_Location::getEmailDetails($cid);
+    list($domainEmailName, $domainEmailAddress) = CRM_Core_BAO_Domain::getNameAndEmail();
+
+    if ($email) {
+      //check this here
+      $tplParams = CRM_Volunteer_BAO_Assignment::prepareTplParams($projectNeeds);
+      $sendTemplateParams = array(
+        'contactId' => $cid,
+        'from' => "$domainEmailName <" . $domainEmailAddress . ">",
+        'groupName' => 'msg_tpl_workflow_volunteer',
+       // 'isTest' => ($this->_mode === 'test'),
+        'toName' => $displayName,
+        'toEmail' => $email,
+        'tplParams' => array("volunteer_projects" => $tplParams),
+        'valueName' => 'volunteer_registration',
+      );
+
+      $bcc = array();
+      foreach ($tplParams as $data) {
+        foreach ($data['contacts'] as $manager) {
+          $bcc[$manager['contact_id']] = "{$manager['display_name']} <{$manager['email']}>";
+        }
+      }
+
+      if (count($bcc)) {
+        $sendTemplateParams['bcc'] = implode(', ', $bcc);
+      }
+
+      CRM_Core_BAO_MessageTemplate::sendTemplate($sendTemplateParams);
+    }
+  }
+
   /**
    * Creates a volunteer activity.
    *
@@ -330,7 +409,7 @@ class CRM_Volunteer_BAO_Assignment extends CRM_Volunteer_BAO_Activity {
     if (empty($params['volunteer_need_id'])) {
       $params['volunteer_need_id'] = civicrm_api3('VolunteerAssignment', 'getvalue', array(
         'id' => $params['id'],
-        'return' => "volunteer_need_id",
+        'return' => 'volunteer_need_id',
       ));
     }
 
@@ -342,6 +421,8 @@ class CRM_Volunteer_BAO_Assignment extends CRM_Volunteer_BAO_Activity {
       $params['duration'] = $params['time_completed_minutes'];
     }
 
+    //preserve need ID
+    $needID = $params['volunteer_need_id'];
     // Format custom fields to update the api correctly.
     foreach(self::getCustomFields() as $fieldName => $field) {
       if (isset($params[$fieldName])) {
@@ -351,6 +432,21 @@ class CRM_Volunteer_BAO_Assignment extends CRM_Volunteer_BAO_Activity {
     }
 
     $activity = civicrm_api3('Activity', 'create', $params);
+
+    $need = civicrm_api3('volunteer_need', 'getsingle', array(
+      'id' => $needID,
+    ));
+
+    $projectNeeds[$need['project_id']] = array();
+    $need['role'] = $need['role_label'];
+    $need['description'] = $need['role_description'];
+    $need['duration'] = CRM_Utils_Array::value('duration', $need);
+    $projectNeeds[$need['project_id']][$need['id']] = $need;
+
+    $cid = $params['assignee_contact_id'];
+    if (CRM_Utils_Rule::integer($cid)) {
+      CRM_Volunteer_BAO_Assignment::sendVolunteerConfirmationEmail($cid, $projectNeeds);
+    }
     return empty($activity['id']) ? FALSE : $activity['id'];
   }
 
