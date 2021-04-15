@@ -86,7 +86,7 @@
     <page_callback>CRM_Volunteer_Page_Angular</page_callback>
     <title>CiviVolunteer</title>
     <access_callback>1</access_callback>
-    <is_public>true</is_public>
+    <is_public>false</is_public>
   </item>
   <item>
     <path>civicrm/volunteer/roster</path>
