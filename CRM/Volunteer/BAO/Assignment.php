@@ -277,6 +277,10 @@ class CRM_Volunteer_BAO_Assignment extends CRM_Volunteer_BAO_Activity {
     if ($addressDisplay) {
       $defaults['location'] = $addressDisplay;
     }
+
+    //https://projects.cividesk.com/projects/38/tasks/4467
+    //copy over duration to Volunteer activity
+    $defaults['duration'] = CRM_Utils_Array::value('duration', $need, 'null');
     /** cividesk code **/
 
     $defaults['campaign_id'] = $project ? $project->campaign_id : '';
