@@ -132,6 +132,7 @@ class CRM_Volunteer_Page_Roster extends CRM_Core_Page {
         'role_label' => $assignment['role_label'],
         'email' => $assignment['assignee_email'],
         'phone' => $assignment['assignee_phone'],
+        'need_id' => $assignment['volunteer_need_id'],
       );
     }
 
@@ -146,4 +147,28 @@ class CRM_Volunteer_Page_Roster extends CRM_Core_Page {
     return $sortedResults;
   }
 
+  public static function sendEmail() {
+    $needID = CRM_Utils_Type::validate($_GET['nid'], 'Integer');
+    $contactID = CRM_Utils_Type::validate($_GET['cid'], 'Integer');
+    $need = civicrm_api3('volunteer_need', 'getsingle', array(
+      'id' => $needID,
+    ));
+
+    //do this
+    $projectNeeds[$need['project_id']] = array();
+    $need['role'] = $need['role_label'];
+    $need['description'] = $need['role_description'];
+    $need['duration'] = CRM_Utils_Array::value('duration', $need);
+    $projectNeeds[$need['project_id']][$need['id']] = $need;
+
+    $cid = $contactID;
+    if (CRM_Utils_Rule::integer($cid)) {
+      CRM_Volunteer_BAO_Assignment::sendVolunteerConfirmationEmail($cid, $projectNeeds);
+
+      $path = "civicrm/vol/";
+      $fragment =  "/volunteer/manage";
+      $newURL = CRM_Utils_System::url($path, NULL, FALSE, $fragment, FALSE, TRUE);
+      CRM_Utils_System::redirect($newURL);
+    }
+  }
 }

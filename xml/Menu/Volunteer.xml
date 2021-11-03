@@ -69,6 +69,10 @@
     <access_arguments>access CiviCRM</access_arguments>
   </item>
   <item>
+    <path>civicrm/vol/email</path>
+    <page_callback>CRM_Volunteer_Page_Roster::sendEmail</page_callback>
+  </item>
+  <item>
     <path>civicrm/volunteer/join</path>
     <title>Notify Me of Volunteer Opportunities</title>
     <access_callback>1</access_callback>
